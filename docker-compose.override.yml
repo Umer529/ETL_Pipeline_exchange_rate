@@ -1,0 +1,76 @@
+# Extra services started alongside Airflow by `astro dev start`.
+
+services:
+  mongodb:
+    image: mongo:7.0
+    container_name: currency-etl-mongodb
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: admin123
+      MONGO_INITDB_DATABASE: currency_db
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db        # persistent storage for database files
+      - mongo_config:/data/configdb
+    networks:
+      - etl_network
+    labels:
+      org.opencontainers.image.title: "currency-etl-mongodb"
+      org.opencontainers.image.description: "MongoDB storing transformed currency exchange rates"
+      org.opencontainers.image.version: "7.0"
+      maintainer: "Umer529"
+      project: "Task 3 - Building Airflow ETL Pipeline"
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  mongo-express:
+    image: mongo-express:1.0.2
+    container_name: currency-etl-mongo-express
+    restart: unless-stopped
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    environment:
+      ME_CONFIG_MONGODB_URL: mongodb://admin:admin123@mongodb:27017/?authSource=admin
+      ME_CONFIG_BASICAUTH_USERNAME: admin
+      ME_CONFIG_BASICAUTH_PASSWORD: admin123
+    ports:
+      - "8081:8081"
+    networks:
+      - etl_network
+    labels:
+      org.opencontainers.image.title: "currency-etl-mongo-express"
+      org.opencontainers.image.description: "Mongo Express web UI for the currency_db database"
+      org.opencontainers.image.version: "1.0.2"
+      maintainer: "Umer529"
+      project: "Task 3 - Building Airflow ETL Pipeline"
+
+  # Attach the Airflow containers to the same network so tasks can reach `mongodb`
+  scheduler:
+    networks:
+      - etl_network
+  dag-processor:
+    networks:
+      - etl_network
+  api-server:
+    networks:
+      - etl_network
+  triggerer:
+    networks:
+      - etl_network
+
+networks:
+  etl_network:
+    name: currency_etl_network
+    driver: bridge
+
+volumes:
+  mongo_data:
+    name: currency_etl_mongo_data
+  mongo_config:
+    name: currency_etl_mongo_config
